@@ -102,20 +102,18 @@ def chat(request, data: ChatIn):
     if not user_input:
         return 400, {"error": "请输入消息内容"}
 
-    # 3. 获取会话（加载旧会话或创建新会话）
-    user = request.auth  # 从认证获取当前用户（APIKey对象）
+    # 3. 获取会话
+    user = request.auth
     session = get_or_create_session(session_id, user)
 
-    # change:
-    # 使用每条消息的存储和上下文支持多轮对话
-    # 1) 保存收到的用户信息
+    # 保存用户消息
     services.save_message(session, True, user_input)
 
-    # 2) 构建prompt
+    # 构建 prompt
     prompt = services.build_prompt_from_recent(session, user_input, max_messages=20)
     logger.info(f"传递给大模型的prompt（窗口化）：\n{prompt}")
 
-    # 获取缓存时传入session和user
+    # 缓存
     cached_reply = get_cached_reply(prompt, session_id, user)
     if cached_reply:
         reply = cached_reply
@@ -123,13 +121,23 @@ def chat(request, data: ChatIn):
         reply = deepseek_r1_api_call(prompt)
         set_cached_reply(prompt, reply, session_id, user)
 
-    # 保存机器人回复为 Message（多轮支持）
+    # ←←← 在这里多加这几行，把 JSON 再转成 Markdown
+    try:
+        md = services._json_to_markdown(reply)
+        # 如果确实转出了更像 Markdown 的内容，就用它
+        if md.strip() and md.strip() != reply.strip():
+            reply = md
+    except Exception:
+        # 转换失败就算了，保持原样
+        pass
+
+    # 保存机器人回复
     services.save_message(session, False, reply)
 
     session.context += f"用户：{user_input}\n回复：{reply}\n"
     session.save()
 
-    # 返回结构化近期消息（为前端 UI 提供更友好的历史）
+    # 返回历史
     recent_msgs = services.fetch_messages(session, limit=50)
     messages_out = [
         {
@@ -141,10 +149,11 @@ def chat(request, data: ChatIn):
     ]
 
     return {
-        "reply": reply,
+        "reply": reply,  # 这里现在就是 Markdown 了
         "messages": messages_out,
         "timestamp": datetime.now().strftime("%H:%M:%S"),
     }
+
 
 
 # 1. 修复 history 接口

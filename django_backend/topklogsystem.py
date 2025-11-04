@@ -11,7 +11,19 @@ import pandas as pd
 from typing import Any, Dict, List
 
 # langchain
-from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
+try:
+    from langchain.prompts import (
+        ChatPromptTemplate,
+        HumanMessagePromptTemplate,
+        SystemMessagePromptTemplate,
+    )
+except Exception:
+    from langchain_core.prompts import (
+        ChatPromptTemplate,
+        HumanMessagePromptTemplate,
+        SystemMessagePromptTemplate,
+    )
+
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
 
 # llama-index & chroma
@@ -27,25 +39,44 @@ logger = logging.getLogger(__name__)
 
 
 class TopKLogSystem:
-    def __init__(
-            self,
-            log_path: str,
-            llm: str,
-            embedding_model: str,
-    ) -> None:
-        # init models
+    def __init__(self, log_path: str, llm: str, embedding_model: str) -> None:
+        # LangChain 侧模型（你原本的做法）
         self.embedding_model = OllamaEmbeddings(model=embedding_model)
-
         self.llm = OllamaLLM(model=llm, temperature=0.1)
 
-        # init database
-        Settings.llm = self.llm
-        Settings.embed_model = self.embedding_model  # 全局设置
+        # —— LlamaIndex 全局设置：仅当相关插件已安装时才配置，避免 500 —— 
+        LI_Ollama = None
+        LI_Emb = None
+        try:
+            from llama_index.llms.ollama import Ollama as LI_Ollama  # 新路径
+        except Exception:
+            try:
+                from llama_index.core.llms.ollama import Ollama as LI_Ollama  # 旧路径
+            except Exception:
+                LI_Ollama = None
 
+        try:
+            from llama_index.embeddings.ollama import OllamaEmbedding as LI_Emb  # 新路径
+        except Exception:
+            try:
+                from llama_index.core.embeddings.ollama import OllamaEmbedding as LI_Emb  # 旧路径
+            except Exception:
+                LI_Emb = None
+
+        if LI_Ollama is not None and LI_Emb is not None:
+            from llama_index.core import Settings
+            # llm：字符串 -> 实例；对象则直接用
+            Settings.llm = LI_Ollama(model=llm, request_timeout=120.0) if isinstance(llm, str) else llm
+            # embedding：字符串 -> 实例；对象则直接用
+            Settings.embed_model = LI_Emb(model_name=embedding_model) if isinstance(embedding_model, str) else embedding_model
+        else:
+            logger.warning("LlamaIndex(Ollama) 插件不可用，跳过 Settings 配置。")
+
+        # 索引 & 路径
         self.log_path = log_path
         self.log_index = None
         self.vector_store = None
-        self._build_vectorstore()  # 直接构建
+        self._build_vectorstore()
 
     # 加载数据并构建索引
     def _build_vectorstore(self):
@@ -124,47 +155,34 @@ class TopKLogSystem:
 
             # LLM 生成响应
 
-    def generate_response(self, query: str, context: Dict) -> str:
-        prompt = self._build_prompt(query, context)  # 构建提示词
-
+    def generate_response(self, query: str, context: List[Dict]) -> str:
+        prompt = self._build_prompt(query, context)  # 现在返回 str
         try:
-            response = self.llm.invoke(prompt)  # 调用LLM
-            return response
+            resp = self.llm.invoke(prompt)
+            return resp.content if hasattr(resp, "content") else str(resp)
         except Exception as e:
             logger.error(f"LLM调用失败: {e}")
             return f"生成响应时出错: {str(e)}"
-
             # 构建 prompt
 
-    def _build_prompt(self, query: str, context: Dict) -> List[Dict]:
-        # 系统消息 - 定义角色和任务
-        system_message = SystemMessagePromptTemplate.from_template(" ")
+    def _build_prompt(self, query: str, context: List[Dict]) -> str:
+        system_message = SystemMessagePromptTemplate.from_template(
+        "你是一个日志与代码分析助手，请基于给定上下文进行严谨分析并给出处。 "
+        )
+        log_context_lines = []
+        for i, log in enumerate(context or [], 1):
+            log_context_lines.append(f"日志 {i} : {log.get('content','')}")
+        log_context = "## 相关历史日志参考:\n" + "\n".join(log_context_lines)
 
-        # 构建日志上下文
-        log_context = "## 相关历史日志参考:\n"
-        for i, log in enumerate(context, 1):
-            log_context += f"日志 {i} : {log['content']}"
+        user_message = HumanMessagePromptTemplate.from_template(
+            "{log_context}\n## 当前需要分析的问题:\n{query}\n\n请基于以上信息，提供详细的分析报告:"
+        )   
+        prompt = ChatPromptTemplate.from_messages([system_message, user_message])
 
-            # 用户消息
-        user_message = HumanMessagePromptTemplate.from_template(""" 
-            {log_context} 
-            ## 当前需要分析的问题: 
-            {query} 
-
-            请基于以上信息，提供详细的分析报告: 
-        """)
-
-        # 创建提示词
-        prompt = ChatPromptTemplate.from_messages([
-            system_message,
-            user_message
-        ])
-
+        # 关键：转为 **字符串**，而不是 to_messages()
         return prompt.format_prompt(
-            log_context=log_context,
-            query=query
-        ).to_messages()
-
+            log_context=log_context, query=query
+        ).to_string()
         # 执行查询
 
     def query(self, query: str) -> Dict:

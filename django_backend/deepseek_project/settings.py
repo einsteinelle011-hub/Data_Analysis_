@@ -83,7 +83,11 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # 允许前端域名（根据实际前端地址修改）
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8090",  # 前端开发服务器地址
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+    "http://localhost:8090",
     "http://127.0.0.1:8090",
 ]
 
@@ -112,3 +116,20 @@ RATE_LIMIT_MAX = 5000  # 每分钟最大请求数
 RATE_LIMIT_INTERVAL = 60
 CACHE_MAX_SIZE = 200
 CACHE_EXPIRY = 300
+
+# === RAG / 知识库配置 ===
+KB_DIR = BASE_DIR / "data" / "kb"           # 你把 PDF/MD/TXT 放这里
+INDEX_DIR = BASE_DIR / "data" / "index"     # 构建出的索引会放这里
+RAG_TOPK = 5                                # 每次检索返回的片段数
+CHUNK_SIZE = 800                            # 简单按字符切分
+CHUNK_OVERLAP = 150
+
+# === Web RAG 开关与配置 ===
+ENABLE_WEB_RAG = True
+WEB_RAG_PROVIDER = "serpapi"   # 这个其实可以不需要了，但留着也没事
+WEB_RAG_TOPK = 5
+WEB_RAG_LANG = "zh-cn"
+SERPAPI_API_KEY = "5a7a457b0b7579bfc321c5d509abcbd181a57b56e9cd3d82698dbe7a97ab8e61"
+
+ENABLE_WORKFLOW = True
+WORKFLOW_MAX_STEPS = 2   # 防止无限循环，先给 1~3 次
