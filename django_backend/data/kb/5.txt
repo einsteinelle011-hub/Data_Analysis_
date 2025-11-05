@@ -1,0 +1,23 @@
+内存故障 (ECC错误/内存泄露)
+
+一、日志关键字：
+- ECC错误： Machine Check Exception (MCE), Corrected ECC Error, Uncorrected ECC Error, Hardware Error
+- 内存泄露： Out of Memory (OOM) Killer, Memory leak detected, High RAM usage
+
+二、原因分析：
+1. ECC错误：
+    - 纠正错误 (Corrected): 内存条的物理故障或高能粒子干扰，ECC机制已自动修复。
+    - 未纠正错误 (Uncorrected): 严重的内存损坏，可能导致系统崩溃或数据损坏。
+2. 内存泄露：
+    - 应用程序代码中存在Bug，持续分配内存但不释放，导致可用内存逐渐减少。
+
+三、解决方案（SOP）：
+1. ECC错误：
+    - 检查硬件日志，定位故障内存条位置。
+    - 如果是未纠正错误，立即隔离或更换该内存条。
+2. 内存泄露：
+    - 使用工具（如 top, htop, valgrind）定位内存使用量异常升高的进程。
+    - 重启异常进程作为临时措施。
+    - 工程师排查应用程序代码，修复内存分配与释放逻辑。
+
+四、关联系统/组件： Kernel (内核), 内存条 (RAM), 应用程序进程。
