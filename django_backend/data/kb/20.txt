@@ -1,0 +1,45 @@
+Apache Doris 日志运维
+
+一、通过 DECOMMISSION 下线 BE 节点时，为什么总会有部分 tablet 残留？
+-在下线过程中，通过 show backends 查看下线节点的 tabletNum，会观察到 tabletNum 数量在减少，说明数据分片正在从这个节点迁移走。当数量减到 0 时，系统会自动删除这个节点。但某些情况下，tabletNum 下降到一定数值后就不变化。这通常可能有以下两种原因：
+
+-这些 tablet 属于刚被删除的表、分区或物化视图。而刚被删除的对象会保留在回收站中。而下线逻辑不会处理这些分片。可以通过修改 FE 的配置参数 catalog_trash_expire_second 来修改对象在回收站中驻留的时间。当对象从回收站中被删除后，这些 tablet 就会被处理了。
+
+-对于以上情况，可以先通过 show proc "/cluster_health/tablet_health"; 查看集群是否还有 unhealthy 的分片，如果为 0，则可以直接通过 drop backend 语句删除这个 BE。否则，还需要具体查看不健康分片的副本情况。
+
+二、 priority_networks 应该如何设置？
+-priority_networks 是 FE、BE 都有的配置参数。这个参数主要用于帮助系统选择正确的网卡 IP 作为自己的 IP。建议任何情况下，都显式的设置这个参数，以防止后续机器增加新网卡导致 IP 选择不正确的问题。
+
+-priority_networks 的值是 CIDR 格式表示的。分为两部分，第一部分是点分十进制的 IP 地址，第二部分是一个前缀长度。比如 10.168.1.0/8 会匹配所有 10.xx.xx.xx 的 IP 地址，而 10.168.1.0/16 会匹配所有 10.168.xx.xx 的 IP 地址。
+
+-之所以使用 CIDR 格式而不是直接指定一个具体 IP，是为了保证所有节点都可以使用统一的配置值。比如有两个节点：10.168.10.1 和 10.168.10.2，则我们可以使用 10.168.10.0/24 来作为 priority_networks 的值。
+
+三、 如何正确阅读 FE/BE 日志？
+很多情况下我们需要通过日志来排查问题。这里说明一下 FE/BE 日志的格式和查看方式。
+
+FE 日志主要有：
+-fe.log：主日志。包括除 fe.out 外的所有内容。
+-fe.warn.log：主日志的子集，仅记录 WARN 和 ERROR 级别的日志。
+-fe.out：标准/错误输出的日志（stdout 和 stderr）。
+-fe.audit.log：审计日志，记录这个 FE 接收的所有 SQL 请求。
+一条典型的 FE 日志如下：
+2021-09-16 23:13:22,502 INFO (tablet scheduler|43) [BeLoadRebalancer.selectAlternativeTabletsForCluster():85] cluster is balance: default_cluster with medium: HDD. skip
+-2021-09-16 23:13:22,502：日志时间。
+-INFO：日志级别，默认是INFO。
+-(tablet scheduler|43)：线程名称和线程 id。通过线程 id，就可以查看这个线程上下文信息，方面排查这个线程发生的事情。
+-BeLoadRebalancer.selectAlternativeTabletsForCluster():85：类名、方法名和代码行号。
+-cluster is balance xxx：日志内容。
+通常情况下我们主要查看 fe.log 日志。特殊情况下，有些日志可能输出到了 fe.out 中。
+
+BE 日志主要有：
+-be.INFO：主日志。这其实是个软连，连接到最新的一个 be.INFO.xxxx 上。
+-be.WARNING：主日志的子集，仅记录 WARN 和 FATAL 级别的日志。这其实是个软连，连接到最新的一个
+-be.WARN.xxxx 上。
+-be.out：标准/错误输出的日志（stdout 和 stderr）。
+一条典型的 BE 日志如下：
+I0916 23:21:22.038795 28087 task_worker_pool.cpp:1594] finish report TASK. master host: 10.10.10.10, port: 9222
+-I0916 23:21:22.038795：日志等级和日期时间。大写字母 I 表示 INFO，W 表示 WARN，F 表示 FATAL。
+-28087：线程 id。通过线程 id，就可以查看这个线程上下文信息，方面排查这个线程发生的事情。
+-task_worker_pool.cpp:1594：代码文件和行号。
+-finish report TASK xxx：日志内容。
+通常情况下我们主要查看 be.INFO 日志。特殊情况下，如 BE 宕机，则需要查看 be.out。

@@ -1,0 +1,23 @@
+故障知识：服务异常（进程崩溃与端口占用）
+
+进程崩溃/端口占用冲突
+
+一、日志关键字：
+- 进程崩溃： Segmentation fault, Process terminated unexpectedly, Core dumped, Exit code 139
+- 端口占用： Address already in use, Bind failed: Port XXXX
+
+二、原因分析：
+1. 进程崩溃： - 访问了非法内存地址（Segment Fault）。
+    - 应用程序代码中未处理的异常或Bug。
+2. 端口占用：
+    - 目标端口已被其他进程（或僵尸进程）占用。
+    - 进程重启时旧进程未完全释放端口。
+
+三、解决方案（SOP）：
+1. 进程崩溃：
+    - 检查应用程序自身的日志，定位崩溃时的代码执行路径。
+    - 使用Core Dump文件进行事后分析。
+    - 临时：配置自动重启服务。
+2. 端口占用：
+    - 使用 netstat -tuln 或 lsof -i :XXXX 命令查找占用该端口的进程ID (PID)。
+    - 杀死占用端口的进程，或修改当前服务的监听端口。

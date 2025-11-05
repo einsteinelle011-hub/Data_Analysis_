@@ -1,0 +1,89 @@
+Blue Prism Enterprise 故障排除
+
+一、日志记录级别
+日志条目按级别分类。信息或更高级别的条目通常记录为标准条目。较低、更详细的级别（如调试和跟踪）可提供更详细的信息，但需要启用。
+
+NLog 定义了以下从低到高的级别：
+
+-跟踪—非常详细的日志，其中可能包含大量信息，如协议有效负载。此日志级别通常仅在开发期间启用。
+-调试—调试信息，不如跟踪信息详细，由于可能对性能产生影响，通常未在生产环境中启用。
+-信息—信息消息，通常在生产环境中正式启用。
+-警告—警告消息，通常用于非关键问题，这些问题可以恢复或者是临时故障。
+-错误—错误消息，大多数是异常。
+-严重—非常严重的错误。
+
+二、标准日志记录配置
+标准 NLog XML 配置文件用于配置 NLog。使用两个单独的配置文件：
+
+-Automate.NLog.config—由 Automate（交互式客户端和资源 PC）、AutomateC 和 AppMan 使用
+-Server.NLog.config—由服务器使用（作为 BPServer.exe 和 Windows 服务运行）
+
+安装 Blue Prism 后，默认日志配置文件安装在 Blue Prism 特定文件夹中，默认安装路径为：C:\ProgramData\Blue Prism Limited\Blue Prism。
+
+日志配置文件包括两个主要日志目的地：
+
+-Windows 事件日志
+-文本日志文件
+
+在日志配置文件中，如果需要提供额外的日志记录，您还可以启用 JSON Lines (JSONL) 日志。有关详细信息，请参阅 JSON Lines 日志。
+
+默认配置将“警告”级别及更高级别的日志条目定向到 Windows 事件日志。默认情况下，文本文件记录是为“信息”级别及更高级别（包括警告、错误和致命错误）配置的。
+
+在正常使用 Blue Prism 期间，您不需要自行修改日志配置文件。在调查产品问题时，客户服务通常会提供备用日志配置文件。
+
+请注意，修改日志记录配置可能会影响应用程序的性能，如果在生产环境中进行修改，则应特别小心。
+
+三、Windows 事件日志
+“警告”及以上级别的日志条目将定向到 Windows 事件日志。
+
+事件日志设置在 <target name="app-eventlog" ... 元素中定义。这是通过配置结尾处的以下元素启用的：
+
+<logger name="*" minlevel="Warn" writeTo="app-eventlog" />
+
+主日志称为 Blue Prism。事件日志源根据信息是由资源 PC、服务器还是交互式客户端记录而有所不同。
+
+四、文本日志文件
+日志文件将写入 Blue Prism 的特定目录。对于默认安装，目录为：C:\ProgramData\Blue Prism Limited\Blue Prism\Logs。此位置也适用于 Blue Prism API 日志文件。Control Room 日志文件已写入到 Blue Prism Hub 日志文件的默认位置 C:\Program Files (x86)\Blue Prism\。根据正在运行的应用程序（交互式客户端、服务器或资源 PC）生成单独的日志文件，并为每个资源 PC 生成唯一的文件名。
+
+文本文件记录包括“信息”级别日志及更高版本。
+
+文本文件日志记录的参数在 <target name="app-logfile" ... 元素中定义，并由配置文件末尾的以下元素控制：
+
+<logger name="*" minlevel="Info" writeTo="app-logfile" />
+
+标准配置包括日志存档和轮换机制，当文件达到 10 MB 时存档文件并保留最多 50 个存档文件。
+
+以下是日志文件中的行示例：
+
+2023-11-15 10:37:20.0287+05:00 BPEU1234 INFO BluePrism.AutomateAppCore.Resources.ResourceRunnerBase processid=39228 thd=28 Activity log set to log externally
+
+标准配置中定义的此文本格式包含以下元素：
+
+-日期和时间（当地时间）
+-UTC 偏移
+-生成日志的计算机名称
+-日志级别 (DEBUG、INFO、WARN、ERROR、FATAL)
+-记录器名称—这通常用于识别日志条目所源自的类和命名空间
+-运行中流程的流程 ID
+-线程 ID
+-日志消息
+-错误信息（仅在记录了异常信息时可用）—完整详细信息将使用单独行记录如下
+
+五、JSON Lines 日志
+日志也可以写入 JSON Lines (JSONL) 文件。JSONL 格式有时也称为新行分隔 JSON (NDJSON)，可使用结构化格式存储数据，从而更容易地进行筛选、查询和分析。
+
+默认情况下此日志格式处于禁用状态，但如果需要更多数据来排除性能相关问题，Blue Prism 支持部门将提供如何启用该日志格式的说明。
+
+六、分析性能数据
+JSONL 日志还可以捕获内存和性能数据，例如 CPU 使用率、内存使用率和句柄计数。您可以使用日志分析工具快速可视化这些数据并帮助识别问题。
+
+七、配置故障排除
+NLog 旨在无提示故障，而不是由于记录过程中遇到错误而关闭您的应用程序。这会使用户难以看到为什么您的日志记录配置不起作用。
+
+潜在问题包括：
+-创建 Windows 事件日志和来源需要提升权限
+-文本文件记录需要目标目录的权限
+
+标准 XML 配置中有一些诊断选项非常有用：
+-在标准配置中找到 throwExceptions="false" 属性并将值修改为 "true" 以启用任何可能显示配置错误的日志记录异常。
+-您还可以启用 NLog 的内部日志记录。在标准配置中，此项默认关闭，但可以通过编辑以下属性启用：internalLogLevel="Off" internalLogFile="C:\temp\nlog-internal.log"。

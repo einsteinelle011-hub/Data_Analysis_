@@ -1,0 +1,25 @@
+数据库连接池耗尽与锁等待
+
+一、日志关键字：
+- 连接池耗尽： HikariPool-1 - Connection is not available, Too many connections, Connections refused
+- 死锁/锁等待： Deadlock found when trying to get lock, Lock wait timeout exceeded, Waiting for table level lock
+
+二、原因分析：
+1. 连接池耗尽：
+    - 应用程序未正确关闭数据库连接（连接泄露）。
+    - 高并发请求瞬时超过了连接池的最大连接数配置。
+2. 锁等待/死锁：
+    - 两个或多个事务互相等待对方释放资源（死锁）。
+    - 大事务长时间持有行锁或表锁，阻塞其他正常操作。
+
+三、解决方案（SOP）：
+1. 连接池耗尽：
+    - 检查应用侧日志，确认连接是否在 finally 块中正确关闭。
+    - 临时性：增大连接池的最大连接数配置。
+    - 长期性：优化SQL查询，缩短连接持有时间。
+2. 锁等待/死锁：
+    - 数据库管理员（DBA）使用 SHOW ENGINE INNODB STATUS 或类似命令分析最新的死锁信息。
+    - 识别并优化长时间未提交或回滚的大事务。
+    - 调整隔离级别（如从 Repeatable Read 降级，需评估风险）。
+
+四、关联系统/组件： MySQL/PostgreSQL 数据库引擎, 应用连接池, 事务管理。

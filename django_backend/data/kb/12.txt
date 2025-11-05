@@ -1,0 +1,18 @@
+DNS解析失败（域名解析错误）
+
+一、日志关键字：
+- Name or service not known, Temporary failure in name resolution, Could not resolve host
+
+二、原因分析：
+1. 本地配置错误： /etc/resolv.conf (Linux) 或网络设置中的DNS服务器地址错误。
+2. DNS服务器故障： 配置的DNS服务器无法访问或运行异常。
+3. 域名记录错误： 域名系统中的A/CNAME记录配置错误或未更新。
+
+三、解决方案（SOP）：
+1. 本地测试：
+    - 使用 nslookup 或 dig 命令手动测试域名解析。
+    - 检查本地 /etc/resolv.conf 文件配置是否正确。
+2. 服务器测试： 尝试更换为公共DNS（如8.8.8.8）测试是否为DNS服务器问题。
+3. 网络检查： 确认服务器可以访问DNS服务器（UDP 53端口）。
+
+四、关联系统/组件： DNS服务器, 客户端 /etc/resolv.conf, 网络防火墙。

@@ -1,0 +1,26 @@
+资源耗尽（内存不足与磁盘满）
+
+一、日志关键字：
+- 内存不足： OOM Killer invoked, Cannot allocate memory, Resource temporarily unavailable
+- 磁盘满： No space left on device, Disk quota exceeded, DF_LOW_SPACE_ALERT
+
+二、原因分析：
+1. 内存不足：
+    - 内存泄露（见硬件部分）。
+    - 突发高并发请求，瞬间占用大量内存。
+    - 系统配置的交换空间（Swap）不足。
+2. 磁盘满：
+    - 日志文件（/var/log）未轮换或轮换失败，持续增长。
+    - 临时文件或备份文件未及时清理。
+
+三、解决方案（SOP）：
+1. 内存不足：
+    - 优化应用程序的内存使用。
+    - 增加系统的物理内存或交换空间。
+    - 检查是否因为子进程过多导致内存耗尽。
+2. 磁盘满：
+    - 使用 du -sh * 命令定位占用空间最大的目录和文件。
+    - 清理不必要的日志文件和临时文件。
+    - 增加磁盘容量或配置定期自动清理脚本。
+
+四、关联系统/组件： Kernel, 应用程序进程, 文件系统, Logrotate服务。
